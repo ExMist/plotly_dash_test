@@ -1,6 +1,4 @@
 dash
-gunicorn
-psycopg2-binary
-redis
-numpy
-faker
+pandas
+plotly
+waitress
