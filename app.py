@@ -2,11 +2,12 @@ import dash
 from dash import html, dcc
 from dash.dependencies import Input, Output
 import plotly.graph_objs as go
+import plotly.express as px  # Убедитесь, что импортирован Plotly Express
 import pandas as pd
 import dash_bootstrap_components as dbc
 from waitress import serve
-import requests
 from datetime import datetime
+import random
 
 # Создаем простую выборку данных
 df = pd.DataFrame({
@@ -31,7 +32,7 @@ server = app.server  # Для Gunicorn
 
 # Навигационная панель
 navbar = dbc.NavbarSimple(
-    brand="Моё Приложение Dash",
+    brand="RISKSCONS",
     brand_href="#",
     color="primary",
     dark=True,
@@ -84,27 +85,27 @@ card3 = dbc.Card(
     style={"width": "100%", "margin-bottom": "20px"},
 )
 
-# Новая карточка для реального времени
+# Новая карточка для синтетических данных
 card4 = dbc.Card(
     [
-        dbc.CardHeader("Реальное время: Цена Bitcoin"),
+        dbc.CardHeader("Реальное время: Синтетические данные"),
         dbc.CardBody(
             [
                 dcc.Graph(
-                    id='live-bitcoin-chart',
+                    id='live-synthetic-chart',
                     figure={
                         'data': [],
                         'layout': go.Layout(
-                            title="Цена Bitcoin (USD)",
+                            title="Синтетические данные",
                             xaxis=dict(title='Время'),
-                            yaxis=dict(title='Цена (USD)'),
+                            yaxis=dict(title='Значение'),
                             margin=dict(l=40, r=20, t=40, b=40),
                         )
                     }
                 ),
                 dcc.Interval(
                     id='interval-component',
-                    interval=10*1000,  # Обновление каждые 10 секунд
+                    interval=5*1000,  # Обновление каждые 5 секунд
                     n_intervals=0
                 )
             ]
@@ -129,13 +130,14 @@ app.layout = dbc.Container(
                 dbc.Col(card2, md=6),
             ],
             className="mb-4",
-        ),dbc.Row(
+        ),
+        dbc.Row(
             [
                 dbc.Col(card3, md=6),
                 dbc.Col(card4, md=6),
             ],
             className="mb-4",
-        ),
+            ),
         dbc.Row(
             dbc.Col(
                 dbc.Alert(
@@ -149,7 +151,7 @@ app.layout = dbc.Container(
         dbc.Row(
             dbc.Col(
                 html.Footer(
-                    "© 2023 Моё Приложение Dash",
+                    "© 2024 Конс.Отчетность",
                     className="text-center",
                     style={"padding": "20px 0"}
                 ),
@@ -160,50 +162,50 @@ app.layout = dbc.Container(
     fluid=True,
 )
 
-# Callback для обновления графика Bitcoin в реальном времени
+# Callback для обновления графика с синтетическими данными в реальном времени
 @app.callback(
-    Output('live-bitcoin-chart', 'figure'),
+    Output('live-synthetic-chart', 'figure'),
     Input('interval-component', 'n_intervals')
 )
-def update_bitcoin_price(n):
+def update_synthetic_data(n):
     try:
-        # Запрос к CoinGecko API для получения текущей цены Bitcoin
-        response = requests.get('https://api.coingecko.com/api/v3/simple/price',
-                                params={'ids': 'bitcoin', 'vs_currencies': 'usd'})
-        data = response.json()
-        price = data['bitcoin']['usd']
+        # Инициализируем историю данных при первом запуске
+        if not hasattr(update_synthetic_data, "history"):
+            update_synthetic_data.history = pd.DataFrame(columns=['Время', 'Значение'])
+            update_synthetic_data.current_value = 100  # Стартовое значение
+
+        # Генерируем новое значение (например, случайное блуждание)
+        delta = random.uniform(-5, 5)  # Случайное изменение между -5 и 5
+        new_value = update_synthetic_data.current_value + delta
+        update_synthetic_data.current_value = new_value
+
+        # Текущий временной штамп
         timestamp = datetime.now().strftime('%H:%M:%S')
-        
-        # Создание DataFrame для графика
-        df_live = pd.DataFrame({
+
+        # Добавляем новое значение в историю
+        new_data = pd.DataFrame({
             'Время': [timestamp],
-            'Цена': [price]
+            'Значение': [new_value]
         })
-        
-        # Чтение текущих данных графика из хранилища (если используется dcc.Store)
-        # Здесь мы будем просто добавлять данные в глобальную переменную
-        if not hasattr(update_bitcoin_price, "history"):
-            update_bitcoin_price.history = pd.DataFrame(columns=['Время', 'Цена'])
-        
-        update_bitcoin_price.history = update_bitcoin_price.history.append(df_live, ignore_index=True)
-        
-        # Ограничение истории до последних 30 точек
-        update_bitcoin_price.history = update_bitcoin_price.history.tail(30)
-        
+        update_synthetic_data.history = pd.concat([update_synthetic_data.history, new_data], ignore_index=True)
+
+        # Ограничиваем историю до последних 30 точек
+        update_synthetic_data.history = update_synthetic_data.history.tail(30)
+
         # Создание фигуры графика
         fig = go.Figure(
             data=[
                 go.Scatter(
-                    x=update_bitcoin_price.history['Время'],
-                    y=update_bitcoin_price.history['Цена'],
+                    x=update_synthetic_data.history['Время'],
+                    y=update_synthetic_data.history['Значение'],
                     mode='lines+markers',
-                    name='Bitcoin'
+                    name='Синтетические данные'
                 )
             ],
             layout=go.Layout(
-                title="Цена Bitcoin (USD)",
+                title="Синтетические данные в реальном времени",
                 xaxis=dict(title='Время'),
-                yaxis=dict(title='Цена (USD)'),
+                yaxis=dict(title='Значение'),
                 margin=dict(l=40, r=20, t=40, b=40),
             )
         )
@@ -213,12 +215,12 @@ def update_bitcoin_price(n):
         return {
             'data': [],
             'layout': go.Layout(
-                title="Ошибка при получении данных",
+                title="Ошибка при генерации данных",
                 xaxis=dict(title='Время'),
-                yaxis=dict(title='Цена (USD)'),
+                yaxis=dict(title='Значение'),
                 annotations=[
                     dict(
-                        text="Не удалось получить данные из API.",
+                        text="Не удалось сгенерировать данные.",
                         showarrow=False,
                         xref="paper",
                         yref="paper",
@@ -243,3 +245,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+            
