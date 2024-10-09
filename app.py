@@ -1,9 +1,12 @@
 import dash
 from dash import html, dcc
-import plotly.express as px
+from dash.dependencies import Input, Output
+import plotly.graph_objs as go
 import pandas as pd
 import dash_bootstrap_components as dbc
 from waitress import serve
+import requests
+from datetime import datetime
 
 # Создаем простую выборку данных
 df = pd.DataFrame({
@@ -81,6 +84,35 @@ card3 = dbc.Card(
     style={"width": "100%", "margin-bottom": "20px"},
 )
 
+# Новая карточка для реального времени
+card4 = dbc.Card(
+    [
+        dbc.CardHeader("Реальное время: Цена Bitcoin"),
+        dbc.CardBody(
+            [
+                dcc.Graph(
+                    id='live-bitcoin-chart',
+                    figure={
+                        'data': [],
+                        'layout': go.Layout(
+                            title="Цена Bitcoin (USD)",
+                            xaxis=dict(title='Время'),
+                            yaxis=dict(title='Цена (USD)'),
+                            margin=dict(l=40, r=20, t=40, b=40),
+                        )
+                    }
+                ),
+                dcc.Interval(
+                    id='interval-component',
+                    interval=10*1000,  # Обновление каждые 10 секунд
+                    n_intervals=0
+                )
+            ]
+        ),
+    ],
+    style={"width": "100%", "margin-bottom": "20px"},
+)
+
 # Макет приложения
 app.layout = dbc.Container(
     [
@@ -97,9 +129,11 @@ app.layout = dbc.Container(
                 dbc.Col(card2, md=6),
             ],
             className="mb-4",
-        ),
-        dbc.Row(
-            dbc.Col(card3, md=12),
+        ),dbc.Row(
+            [
+                dbc.Col(card3, md=6),
+                dbc.Col(card4, md=6),
+            ],
             className="mb-4",
         ),
         dbc.Row(
@@ -125,6 +159,76 @@ app.layout = dbc.Container(
     ],
     fluid=True,
 )
+
+# Callback для обновления графика Bitcoin в реальном времени
+@app.callback(
+    Output('live-bitcoin-chart', 'figure'),
+    Input('interval-component', 'n_intervals')
+)
+def update_bitcoin_price(n):
+    try:
+        # Запрос к CoinGecko API для получения текущей цены Bitcoin
+        response = requests.get('https://api.coingecko.com/api/v3/simple/price',
+                                params={'ids': 'bitcoin', 'vs_currencies': 'usd'})
+        data = response.json()
+        price = data['bitcoin']['usd']
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        
+        # Создание DataFrame для графика
+        df_live = pd.DataFrame({
+            'Время': [timestamp],
+            'Цена': [price]
+        })
+        
+        # Чтение текущих данных графика из хранилища (если используется dcc.Store)
+        # Здесь мы будем просто добавлять данные в глобальную переменную
+        if not hasattr(update_bitcoin_price, "history"):
+            update_bitcoin_price.history = pd.DataFrame(columns=['Время', 'Цена'])
+        
+        update_bitcoin_price.history = update_bitcoin_price.history.append(df_live, ignore_index=True)
+        
+        # Ограничение истории до последних 30 точек
+        update_bitcoin_price.history = update_bitcoin_price.history.tail(30)
+        
+        # Создание фигуры графика
+        fig = go.Figure(
+            data=[
+                go.Scatter(
+                    x=update_bitcoin_price.history['Время'],
+                    y=update_bitcoin_price.history['Цена'],
+                    mode='lines+markers',
+                    name='Bitcoin'
+                )
+            ],
+            layout=go.Layout(
+                title="Цена Bitcoin (USD)",
+                xaxis=dict(title='Время'),
+                yaxis=dict(title='Цена (USD)'),
+                margin=dict(l=40, r=20, t=40, b=40),
+            )
+        )
+        return fig
+    except Exception as e:
+        # В случае ошибки возвращаем пустую фигуру с сообщением
+        return {
+            'data': [],
+            'layout': go.Layout(
+                title="Ошибка при получении данных",
+                xaxis=dict(title='Время'),
+                yaxis=dict(title='Цена (USD)'),
+                annotations=[
+                    dict(
+                        text="Не удалось получить данные из API.",
+                        showarrow=False,
+                        xref="paper",
+                        yref="paper",
+                        x=0.5,
+                        y=0.5,
+                        font=dict(size=20)
+                    )
+                ]
+            )
+        }
 
 def main():
     serve(
