@@ -1,152 +1,55 @@
 import dash
-from dash import html, dcc
-from dash.dependencies import Input, Output
-import plotly.graph_objs as go
-import plotly.express as px  # Убедитесь, что импортирован Plotly Express
-import pandas as pd
 import dash_bootstrap_components as dbc
-from waitress import serve
-from datetime import datetime
+from dash import dcc, html, Input, Output, State
+import plotly.graph_objs as go
+from flask import Flask
+import pandas as pd
 import random
+from datetime import datetime
 
-# Создаем простую выборку данных
-df = pd.DataFrame({
-    "Категория": ["A", "B", "C", "D"],
-    "Значение": [4, 1, 3, 5]
-})
-
-# Дополнительные данные для разнообразия
-df_line = pd.DataFrame({
-    "Месяц": ["Январь", "Февраль", "Март", "Апрель"],
-    "Продажи": [150, 200, 170, 220]
-})
-
-df_pie = pd.DataFrame({
-    "Тип": ["Продукт 1", "Продукт 2", "Продукт 3"],
-    "Доля": [45, 30, 25]
-})
-
-# Инициализация Dash-приложения с Bootstrap темой
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
-server = app.server  # Для Gunicorn
-
-# Навигационная панель
-navbar = dbc.NavbarSimple(
-    brand="RISKSCONS",
-    brand_href="#",
-    color="primary",
-    dark=True,
-    fluid=True,
-)
-
-# Карточки с информацией
-card1 = dbc.Card(
-    [
-        dbc.CardHeader("Столбчатая диаграмма"),
-        dbc.CardBody(
-            [
-                dcc.Graph(
-                    id='bar-chart',
-                    figure=px.bar(df, x='Категория', y='Значение', title="Пример столбчатой диаграммы")
-                )
-            ]
-        ),
-    ],
-    style={"width": "100%", "margin-bottom": "20px"},
-)
-
-card2 = dbc.Card(
-    [
-        dbc.CardHeader("Линейный график"),
-        dbc.CardBody(
-            [
-                dcc.Graph(
-                    id='line-chart',
-                    figure=px.line(df_line, x='Месяц', y='Продажи', title="Продажи по месяцам")
-                )
-            ]
-        ),
-    ],
-    style={"width": "100%", "margin-bottom": "20px"},
-)
-
-card3 = dbc.Card(
-    [
-        dbc.CardHeader("Круговая диаграмма"),
-        dbc.CardBody(
-            [
-                dcc.Graph(
-                    id='pie-chart',
-                    figure=px.pie(df_pie, names='Тип', values='Доля', title="Распределение продуктов")
-                )
-            ]
-        ),
-    ],
-    style={"width": "100%", "margin-bottom": "20px"},
-)
-
-# Новая карточка для синтетических данных
-card4 = dbc.Card(
-    [
-        dbc.CardHeader("Реальное время: Синтетические данные"),
-        dbc.CardBody(
-            [
-                dcc.Graph(
-                    id='live-synthetic-chart',
-                    figure={
-                        'data': [],
-                        'layout': go.Layout(
-                            title="Синтетические данные",
-                            xaxis=dict(title='Время'),
-                            yaxis=dict(title='Значение'),
-                            margin=dict(l=40, r=20, t=40, b=40),
-                        )
-                    }
-                ),
-                dcc.Interval(
-                    id='interval-component',
-                    interval=5*1000,  # Обновление каждые 5 секунд
-                    n_intervals=0
-                )
-            ]
-        ),
-    ],
-    style={"width": "100%", "margin-bottom": "20px"},
-)
+# Инициализация приложения
+external_stylesheets = [dbc.themes.BOOTSTRAP]
+server = Flask(__name__)
+app = dash.Dash(__name__, server=server, external_stylesheets=external_stylesheets)
 
 # Макет приложения
 app.layout = dbc.Container(
     [
-        navbar,
         dbc.Row(
             dbc.Col(
-                html.H1("Интерактивные Визуализации с Dash", className="text-center my-4"),
+                html.H2("Конс.Отчетность", className="text-center"),
                 width=12
             )
         ),
         dbc.Row(
             [
-                dbc.Col(card1, md=6),
-                dbc.Col(card2, md=6),
-            ],
-            className="mb-4",
-        ),
-        dbc.Row(
-            [
-                dbc.Col(card3, md=6),
-                dbc.Col(card4, md=6),
-            ],
-            className="mb-4",
-            ),
-        dbc.Row(
-            dbc.Col(
-                dbc.Alert(
-                    "Это Dash-приложение, запущенное в Docker с использованием Waitress и Nginx.",
-                    color="secondary",
-                    className="text-center",
+                dbc.Col(
+                    dcc.Graph(id='live-synthetic-chart'),
+                    width=8
                 ),
-                width=12
-            )
+                dbc.Col(
+                    # Чат-бот интерфейс
+                    dbc.Card(
+                        [
+                            dbc.CardHeader("Чат-бот"),
+                            dbc.CardBody(
+                                [
+                                    html.Div(id='chat-content', style={'height': '400px', 'overflowY': 'scroll', 'border': '1px solid #ccc', 'padding': '10px'}),
+                                    dbc.InputGroup(
+                                        [
+                                            dbc.Input(id='chat-input', type='text', placeholder='Введите сообщение...'),
+                                            dbc.Button("Отправить", id='send-button', color='primary'),
+                                        ],
+                                        className="mt-2",
+                                    ),
+                                ]
+                            ),
+                        ],
+                        style={"height": "100%"}
+                    ),
+                    width=4
+                ),
+            ]
         ),
         dbc.Row(
             dbc.Col(
@@ -157,6 +60,12 @@ app.layout = dbc.Container(
                 ),
                 width=12
             )
+        ),
+        # Компонент для обновления графика
+        dcc.Interval(
+            id='interval-component',
+            interval=5*1000,  # обновление каждые 5 секунд
+            n_intervals=0
         ),
     ],
     fluid=True,
@@ -175,7 +84,7 @@ def update_synthetic_data(n):
             update_synthetic_data.current_value = 100  # Стартовое значение
 
         # Генерируем новое значение (например, случайное блуждание)
-        delta = random.uniform(-5, 5)  # Случайное изменение между -5 и 5
+                delta = random.uniform(-5, 5)  # Случайное изменение между -5 и 5
         new_value = update_synthetic_data.current_value + delta
         update_synthetic_data.current_value = new_value
 
@@ -232,17 +141,42 @@ def update_synthetic_data(n):
             )
         }
 
+# Callback для обработки чата
+@app.callback(
+    Output('chat-content', 'children'),
+    [Input('send-button', 'n_clicks')],
+    [State('chat-input', 'value'),
+     State('chat-content', 'children')]
+)
+def update_chat(n_clicks, user_input, chat_history):
+    if n_clicks is None:
+        # Первоначальная загрузка, можно вернуть пустой чат
+        return []
+    if user_input:
+        if chat_history is None:
+            chat_history = []
+        # Добавляем сообщение пользователя
+        chat_history.append(html.Div([
+            html.Strong("Вы: "),
+            html.Span(user_input)
+        ], style={'textAlign': 'right', 'marginBottom': '10px'}))
+        
+        # Генерация ответа бота (эко-бот для примера)
+        bot_response = generate_bot_response(user_input)
+        chat_history.append(html.Div([
+            html.Strong("Бот: "),
+            html.Span(bot_response)
+        ], style={'textAlign': 'left', 'marginBottom': '10px'}))
+        
+        return chat_history
+    return chat_history
+
+def generate_bot_response(user_message):
+    # Простая логика ответа бота
+    return f"Вы сказали: {user_message}"
+
 def main():
-    serve(
-        server,
-        host='0.0.0.0',
-        port=8000,
-        threads=8,
-        ident='my_dash_app',
-        expose_tracebacks=True,
-        _quiet=False,                 
-    )
+    app.run_server(host='0.0.0.0', port=8000, debug=True)
 
 if __name__ == "__main__":
     main()
-            
